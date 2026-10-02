@@ -1,0 +1,17 @@
+{
+  "name": "flappy-code",
+  "owner": { "name": "Fixter" },
+  "metadata": {
+    "description": "Flappy Code, a Flappy Bird mod for Claude Code",
+    "version": "0.3.1"
+  },
+  "plugins": [
+    {
+      "name": "flappy",
+      "source": "./",
+      "description": "Jump the Claude mascot through diff hunks in a pane while Claude works",
+      "category": "fun",
+      "tags": ["game", "mod", "pane"]
+    }
+  ]
+}
