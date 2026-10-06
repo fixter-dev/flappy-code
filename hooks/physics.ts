@@ -36,7 +36,10 @@ const GAP_SLACK = 4
 const MAX_FALL = 1.1
 const SCROLL_TICKS = 2
 const FIRST_HUNK_DISTANCE = 44
-const HUNK_SPACING = 28
+const EASY_SPACING = 28
+const HARD_SPACING = 21
+const HARDEST_SCORE = 250
+const SWING_REACH = 6
 const RESTART_TICKS = 16
 const BOB_PERIOD = 6
 
@@ -82,16 +85,47 @@ const isOnFloor = (game: Game, size: Size): boolean => jumperTop(game) + JUMPER_
 
 const isTooSoonToRestart = (game: Game): boolean => game.tick - game.diedAt < RESTART_TICKS
 
+export const difficultyOf = (score: number): number => Math.min(1, score / HARDEST_SCORE)
+
+export const spacingOf = (score: number): number =>
+  Math.round(EASY_SPACING - (EASY_SPACING - HARD_SPACING) * difficultyOf(score))
+
+const farPlaceChance = (difficulty: number): number => (1 + difficulty) / 2
+
+const isFarPlaceDrawn = (seed: number, difficulty: number): boolean =>
+  (seed >>> 24) / 0x100 < farPlaceChance(difficulty)
+
+const nextPlace = (seed: number, places: number, lastPlace: number, difficulty: number): number => {
+  const lowest = Math.max(0, lastPlace - SWING_REACH)
+  const reachable = Math.min(places - 1, lastPlace + SWING_REACH) - lowest + 1
+  const first = lowest + ((seed >>> 8) % reachable)
+  const second = lowest + ((seed >>> 16) % reachable)
+  const [near, far] = Math.abs(first - lastPlace) <= Math.abs(second - lastPlace) ? [first, second] : [second, first]
+
+  return isFarPlaceDrawn(seed, difficulty) ? far : near
+}
+
+const placeOfGap = (gapTop: number, margin: number): number => (gapTop - margin) / 2
+
+const nextHunkX = (hunks: Hunk[], spacing: number): number => {
+  const last = hunks.at(-1)
+
+  return last ? last.x + spacing : JUMPER_X + FIRST_HUNK_DISTANCE
+}
+
 const spawned = (game: Game, size: Size): Game => {
   const margin = marginOf(size)
   const places = Math.max(1, Math.floor((playHeight(size) - gapOf(size) - 2 * margin) / 2) + 1)
+  const difficulty = difficultyOf(game.score)
+  const spacing = spacingOf(game.score)
   const hunks = [...game.hunks]
   let seed = game.seed
-  let x = (hunks.at(-1)?.x ?? JUMPER_X + FIRST_HUNK_DISTANCE - HUNK_SPACING) + HUNK_SPACING
+  let x = nextHunkX(hunks, spacing)
   while (x <= size.columns) {
     seed = nextSeed(seed)
-    hunks.push({ x, gapTop: margin + 2 * ((seed >>> 8) % places), isPassed: false })
-    x += HUNK_SPACING
+    const lastPlace = placeOfGap(hunks.at(-1)?.gapTop ?? margin, margin)
+    hunks.push({ x, gapTop: margin + 2 * nextPlace(seed, places, lastPlace, difficulty), isPassed: false })
+    x += spacing
   }
 
   return hunks.length === game.hunks.length ? game : { ...game, seed, hunks }

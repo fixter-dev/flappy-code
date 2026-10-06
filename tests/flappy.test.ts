@@ -1,6 +1,18 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { HUNK_WIDTH, JUMPER_HEIGHT, JUMPER_X, flap, gapOf, isSettled, newGame, playHeight, step } from '../hooks/physics'
+import {
+  HUNK_WIDTH,
+  JUMPER_HEIGHT,
+  JUMPER_X,
+  difficultyOf,
+  flap,
+  gapOf,
+  isSettled,
+  newGame,
+  playHeight,
+  spacingOf,
+  step,
+} from '../hooks/physics'
 import type { Game, Size } from '../hooks/physics'
 
 const SIZE = { columns: 60, height: 36 }
@@ -100,6 +112,37 @@ test('hunks keep coming with gaps that fit the screen', () => {
     expect(gapTop).toBeGreaterThan(3)
     expect(gapTop + gapOf(SIZE)).toBeLessThan(playHeight(SIZE) - 3)
   }
+})
+
+const WIDE = { columns: 4000, height: 36 }
+
+const spawnedAt = (score: number, seed: number): Game => step({ ...started(WIDE, seed), score }, WIDE)
+
+const swingsOf = (game: Game): number[] =>
+  game.hunks.slice(1).map((hunk, index) => Math.abs(hunk.gapTop - (game.hunks[index]?.gapTop ?? hunk.gapTop)))
+
+const meanSwing = (score: number): number => {
+  const swings = [1, 2, 3, 4, 5].flatMap(seed => swingsOf(spawnedAt(score, seed)))
+
+  return swings.reduce((sum, swing) => sum + swing, 0) / swings.length
+}
+
+test('hunks come closer together and swing further apart as the score climbs, up to a cap', () => {
+  expect(spacingOf(0)).toBe(28)
+  expect(spacingOf(125)).toBeLessThan(spacingOf(0))
+  expect(spacingOf(250)).toBeLessThan(spacingOf(125))
+  expect(spacingOf(1000)).toBe(spacingOf(250))
+  expect(difficultyOf(1000)).toBe(difficultyOf(250))
+
+  expect(meanSwing(250)).toBeGreaterThan(meanSwing(0))
+  expect(meanSwing(1000)).toBe(meanSwing(250))
+})
+
+test('even at the hardest, a tall pane never asks for a swing too far to fly', () => {
+  const tall = { columns: 4000, height: 80 }
+  const hardest = step({ ...started(tall, 3), score: 250 }, tall)
+
+  expect(Math.max(...swingsOf(hardest))).toBeLessThanOrEqual(12)
 })
 
 test('a short pane still leaves a gap the jumper fits through and can hop within', () => {
